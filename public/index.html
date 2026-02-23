@@ -20,9 +20,17 @@
             <div class="login-card glass">
                 <div class="login-logo">🎴</div>
                 <h1 class="login-title">English Flashcard</h1>
-                <p class="login-subtitle">Đăng nhập để bắt đầu học</p>
+                <p class="login-subtitle" id="login-subtitle">Đăng nhập để bắt đầu học</p>
 
-                <form id="login-form" onsubmit="handleLogin(event)">
+                <!-- TABS -->
+                <div class="auth-tabs">
+                    <button class="auth-tab active" id="tab-login" onclick="switchAuthTab('login')">🔐 Đăng
+                        nhập</button>
+                    <button class="auth-tab" id="tab-register" onclick="switchAuthTab('register')">📝 Đăng ký</button>
+                </div>
+
+                <!-- LOGIN FORM -->
+                <form id="login-form" class="auth-form active" onsubmit="handleLogin(event)">
                     <div class="form-group">
                         <label>Tên đăng nhập</label>
                         <input type="text" id="login-username" class="text-input" required
@@ -34,14 +42,15 @@
                             placeholder="Nhập mật khẩu" minlength="6">
                     </div>
                     <div class="login-error hidden" id="login-error"></div>
-                    <button type="submit" class="btn btn-primary btn-lg btn-block" id="login-btn">🔐 Đăng nhập</button>
+                    <button type="submit" class="btn btn-primary btn-lg btn-block">🔐 Đăng nhập</button>
+                    <p class="auth-switch">Chưa có tài khoản? <a href="#"
+                            onclick="switchAuthTab('register'); return false;">Đăng ký ngay</a></p>
                 </form>
 
-                <div class="login-divider"><span>hoặc</span></div>
-
-                <form id="register-form" onsubmit="handleRegister(event)">
+                <!-- REGISTER FORM -->
+                <form id="register-form" class="auth-form" onsubmit="handleRegister(event)">
                     <div class="form-group">
-                        <label>Tên đăng nhập mới</label>
+                        <label>Tên đăng nhập</label>
                         <input type="text" id="reg-username" class="text-input" required placeholder="Tối thiểu 3 ký tự"
                             minlength="3">
                     </div>
@@ -55,8 +64,9 @@
                             placeholder="Tối thiểu 6 ký tự" minlength="6">
                     </div>
                     <div class="register-error hidden" id="register-error"></div>
-                    <button type="submit" class="btn btn-success btn-lg btn-block" id="reg-btn">📝 Đăng ký tài
-                        khoản</button>
+                    <button type="submit" class="btn btn-success btn-lg btn-block">📝 Đăng ký tài khoản</button>
+                    <p class="auth-switch">Đã có tài khoản? <a href="#"
+                            onclick="switchAuthTab('login'); return false;">Đăng nhập</a></p>
                 </form>
             </div>
         </div>

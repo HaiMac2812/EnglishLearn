@@ -77,6 +77,17 @@ function showLoginPage() {
     document.querySelector('.main-content').style.display = 'none';
 }
 
+function switchAuthTab(tab) {
+    document.getElementById('tab-login').classList.toggle('active', tab === 'login');
+    document.getElementById('tab-register').classList.toggle('active', tab === 'register');
+    document.getElementById('login-form').classList.toggle('active', tab === 'login');
+    document.getElementById('register-form').classList.toggle('active', tab === 'register');
+    document.getElementById('login-subtitle').textContent =
+        tab === 'login' ? 'Đăng nhập để bắt đầu học' : 'Tạo tài khoản mới để bắt đầu';
+    document.getElementById('login-error').classList.add('hidden');
+    document.getElementById('register-error').classList.add('hidden');
+}
+
 function showApp() {
     document.getElementById('login-overlay').classList.remove('active');
     document.getElementById('sidebar').style.display = '';
