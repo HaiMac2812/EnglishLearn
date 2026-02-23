@@ -14,6 +14,54 @@
 </head>
 
 <body>
+    <!-- LOGIN PAGE -->
+    <div class="login-overlay" id="login-overlay">
+        <div class="login-container">
+            <div class="login-card glass">
+                <div class="login-logo">🎴</div>
+                <h1 class="login-title">English Flashcard</h1>
+                <p class="login-subtitle">Đăng nhập để bắt đầu học</p>
+
+                <form id="login-form" onsubmit="handleLogin(event)">
+                    <div class="form-group">
+                        <label>Tên đăng nhập</label>
+                        <input type="text" id="login-username" class="text-input" required
+                            placeholder="Nhập tên đăng nhập" minlength="3">
+                    </div>
+                    <div class="form-group">
+                        <label>Mật khẩu</label>
+                        <input type="password" id="login-password" class="text-input" required
+                            placeholder="Nhập mật khẩu" minlength="6">
+                    </div>
+                    <div class="login-error hidden" id="login-error"></div>
+                    <button type="submit" class="btn btn-primary btn-lg btn-block" id="login-btn">🔐 Đăng nhập</button>
+                </form>
+
+                <div class="login-divider"><span>hoặc</span></div>
+
+                <form id="register-form" onsubmit="handleRegister(event)">
+                    <div class="form-group">
+                        <label>Tên đăng nhập mới</label>
+                        <input type="text" id="reg-username" class="text-input" required placeholder="Tối thiểu 3 ký tự"
+                            minlength="3">
+                    </div>
+                    <div class="form-group">
+                        <label>Tên hiển thị</label>
+                        <input type="text" id="reg-displayname" class="text-input" placeholder="Tên của bạn (tùy chọn)">
+                    </div>
+                    <div class="form-group">
+                        <label>Mật khẩu</label>
+                        <input type="password" id="reg-password" class="text-input" required
+                            placeholder="Tối thiểu 6 ký tự" minlength="6">
+                    </div>
+                    <div class="register-error hidden" id="register-error"></div>
+                    <button type="submit" class="btn btn-success btn-lg btn-block" id="reg-btn">📝 Đăng ký tài
+                        khoản</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
     <!-- SIDEBAR -->
     <nav class="sidebar" id="sidebar">
         <div class="sidebar-logo">
@@ -41,8 +89,17 @@
             </li>
         </ul>
         <div class="sidebar-footer">
-            <div class="theme-toggle" onclick="toggleTheme()">
-                <span id="theme-icon">🌙</span>
+            <div class="user-info" id="user-info">
+                <span class="user-avatar">👤</span>
+                <span class="user-name" id="user-display-name"></span>
+            </div>
+            <div class="sidebar-actions">
+                <div class="theme-toggle" onclick="toggleTheme()">
+                    <span id="theme-icon">🌙</span>
+                </div>
+                <div class="logout-btn" onclick="handleLogout()" title="Đăng xuất">
+                    🚪
+                </div>
             </div>
         </div>
     </nav>

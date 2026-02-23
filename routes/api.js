@@ -3,6 +3,7 @@ const router = express.Router();
 const Vocabulary = require('../models/Vocabulary');
 const Progress = require('../models/Progress');
 const QuizHistory = require('../models/QuizHistory');
+const { adminOnly } = require('../middleware/auth');
 
 // ==================== VOCABULARY ====================
 
@@ -44,8 +45,8 @@ router.post('/vocabulary', async (req, res) => {
     }
 });
 
-// PUT update word
-router.put('/vocabulary/:id', async (req, res) => {
+// PUT update word (admin only)
+router.put('/vocabulary/:id', adminOnly, async (req, res) => {
     try {
         const word = await Vocabulary.findByIdAndUpdate(req.params.id, req.body, { new: true });
         if (!word) return res.status(404).json({ error: 'Word not found' });
@@ -55,8 +56,8 @@ router.put('/vocabulary/:id', async (req, res) => {
     }
 });
 
-// DELETE word
-router.delete('/vocabulary/:id', async (req, res) => {
+// DELETE word (admin only)
+router.delete('/vocabulary/:id', adminOnly, async (req, res) => {
     try {
         const word = await Vocabulary.findByIdAndDelete(req.params.id);
         if (!word) return res.status(404).json({ error: 'Word not found' });
@@ -208,8 +209,8 @@ router.post('/sentences', async (req, res) => {
     }
 });
 
-// PUT update sentence structure
-router.put('/sentences/:id', async (req, res) => {
+// PUT update sentence structure (admin only)
+router.put('/sentences/:id', adminOnly, async (req, res) => {
     try {
         const sentence = await SentenceStructure.findByIdAndUpdate(req.params.id, req.body, { new: true });
         if (!sentence) return res.status(404).json({ error: 'Not found' });
@@ -219,8 +220,8 @@ router.put('/sentences/:id', async (req, res) => {
     }
 });
 
-// DELETE sentence structure
-router.delete('/sentences/:id', async (req, res) => {
+// DELETE sentence structure (admin only)
+router.delete('/sentences/:id', adminOnly, async (req, res) => {
     try {
         const sentence = await SentenceStructure.findByIdAndDelete(req.params.id);
         if (!sentence) return res.status(404).json({ error: 'Not found' });

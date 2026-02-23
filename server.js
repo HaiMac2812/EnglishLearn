@@ -5,6 +5,8 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const path = require('path');
 const apiRoutes = require('./routes/api');
+const authRoutes = require('./routes/auth');
+const { authMiddleware } = require('./middleware/auth');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -15,8 +17,11 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// API Routes
-app.use('/api', apiRoutes);
+// Auth Routes (public)
+app.use('/auth', authRoutes);
+
+// API Routes (protected)
+app.use('/api', authMiddleware, apiRoutes);
 
 // Serve frontend
 app.get('*', (req, res) => {

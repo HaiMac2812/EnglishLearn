@@ -1,5 +1,32 @@
-// ===== API BASE =====
+// ===== AUTH & API =====
 const API = '/api';
+const AUTH = '/auth';
+let authToken = localStorage.getItem('flashcard_token');
+let currentUser = null;
+
+// Helper: add auth header to all API calls
+function authHeaders(extra = {}) {
+    return { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}`, ...extra };
+}
+
+async function apiFetch(url, options = {}) {
+    if (!options.headers) options.headers = {};
+    if (authToken) options.headers['Authorization'] = `Bearer ${authToken}`;
+    if (!options.headers['Content-Type'] && options.method && options.method !== 'GET') {
+        options.headers['Content-Type'] = 'application/json';
+    }
+    const res = await fetch(url, options);
+    if (res.status === 401) {
+        handleLogout();
+        throw new Error('Phiên đăng nhập hết hạn');
+    }
+    if (res.status === 403) {
+        const data = await res.json();
+        showToast(data.error || 'Bạn không có quyền', 'error');
+        throw new Error('Forbidden');
+    }
+    return res;
+}
 
 // ===== STATE =====
 let studyCards = [];
@@ -15,14 +42,132 @@ let quizAnswers = [];
 let manageWords = [];
 let allSentences = [];
 
+function isAdmin() {
+    return currentUser && currentUser.role === 'admin';
+}
+
 // ===== INIT =====
 document.addEventListener('DOMContentLoaded', () => {
+    checkAuth();
+    document.addEventListener('keydown', handleKeyboard);
+});
+
+// ===== AUTH =====
+async function checkAuth() {
+    if (!authToken) {
+        showLoginPage();
+        return;
+    }
+    try {
+        const res = await fetch(`${AUTH}/me`, { headers: { 'Authorization': `Bearer ${authToken}` } });
+        if (!res.ok) throw new Error('Invalid token');
+        const data = await res.json();
+        currentUser = data.user;
+        showApp();
+    } catch (err) {
+        authToken = null;
+        localStorage.removeItem('flashcard_token');
+        showLoginPage();
+    }
+}
+
+function showLoginPage() {
+    document.getElementById('login-overlay').classList.add('active');
+    document.getElementById('sidebar').style.display = 'none';
+    document.querySelector('.main-content').style.display = 'none';
+}
+
+function showApp() {
+    document.getElementById('login-overlay').classList.remove('active');
+    document.getElementById('sidebar').style.display = '';
+    document.querySelector('.main-content').style.display = '';
+
+    // Show user info
+    const nameEl = document.getElementById('user-display-name');
+    if (nameEl) nameEl.textContent = currentUser.username;
+
+    // Show/hide admin elements
+    updateAdminUI();
+
+    // Load data
     loadHomeData();
     loadCategorySelects();
     loadSentenceCategorySelects();
-    // Keyboard shortcuts
-    document.addEventListener('keydown', handleKeyboard);
-});
+}
+
+function updateAdminUI() {
+    // Toggle visibility for admin-only buttons
+    document.querySelectorAll('.admin-only').forEach(el => {
+        el.style.display = isAdmin() ? '' : 'none';
+    });
+}
+
+async function handleLogin(e) {
+    e.preventDefault();
+    const username = document.getElementById('login-username').value.trim();
+    const password = document.getElementById('login-password').value;
+    const errorEl = document.getElementById('login-error');
+    errorEl.classList.add('hidden');
+
+    try {
+        const res = await fetch(`${AUTH}/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password })
+        });
+        const data = await res.json();
+        if (!res.ok) {
+            errorEl.textContent = data.error;
+            errorEl.classList.remove('hidden');
+            return;
+        }
+        authToken = data.token;
+        currentUser = data.user;
+        localStorage.setItem('flashcard_token', authToken);
+        showApp();
+    } catch (err) {
+        errorEl.textContent = 'Lỗi kết nối server';
+        errorEl.classList.remove('hidden');
+    }
+}
+
+async function handleRegister(e) {
+    e.preventDefault();
+    const username = document.getElementById('reg-username').value.trim();
+    const displayName = document.getElementById('reg-displayname').value.trim();
+    const password = document.getElementById('reg-password').value;
+    const errorEl = document.getElementById('register-error');
+    errorEl.classList.add('hidden');
+
+    try {
+        const res = await fetch(`${AUTH}/register`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password, displayName })
+        });
+        const data = await res.json();
+        if (!res.ok) {
+            errorEl.textContent = data.error;
+            errorEl.classList.remove('hidden');
+            return;
+        }
+        authToken = data.token;
+        currentUser = data.user;
+        localStorage.setItem('flashcard_token', authToken);
+        showToast(`Chào mừng ${data.user.displayName}!${data.user.role === 'admin' ? ' 👑 Bạn là Admin!' : ''}`, 'success');
+        showApp();
+    } catch (err) {
+        errorEl.textContent = 'Lỗi kết nối server';
+        errorEl.classList.remove('hidden');
+    }
+}
+
+function handleLogout() {
+    authToken = null;
+    currentUser = null;
+    localStorage.removeItem('flashcard_token');
+    showLoginPage();
+}
 
 // ===== NAVIGATION =====
 function navigateTo(page) {
@@ -56,7 +201,6 @@ function handleKeyboard(e) {
     const activePage = document.querySelector('.page.active');
     if (!activePage) return;
     const pageId = activePage.id;
-
     if (pageId === 'page-study') {
         if (e.code === 'Space') { e.preventDefault(); flipCard(); }
         if (e.code === 'ArrowLeft') prevCard();
@@ -67,14 +211,13 @@ function handleKeyboard(e) {
 // ===== HOME =====
 async function loadHomeData() {
     try {
-        const stats = await fetch(`${API}/progress/stats`).then(r => r.json());
+        const stats = await apiFetch(`${API}/progress/stats`).then(r => r.json());
         document.getElementById('stat-total').textContent = stats.total;
         document.getElementById('stat-known').textContent = stats.known;
         document.getElementById('stat-learning').textContent = stats.learning;
         document.getElementById('stat-new').textContent = stats.new;
 
-        // Categories
-        const categories = await fetch(`${API}/categories`).then(r => r.json());
+        const categories = await apiFetch(`${API}/categories`).then(r => r.json());
         const emojis = { 'Animals': '🐾', 'Food': '🍕', 'Travel': '✈️', 'Business': '💼', 'Daily Life': '🏠', 'Technology': '💻' };
         const grid = document.getElementById('categories-grid');
         grid.innerHTML = categories.map(cat => `
@@ -85,7 +228,6 @@ async function loadHomeData() {
       </div>
     `).join('');
 
-        // Quiz history
         renderQuizHistory(stats.recentQuizzes, 'home-quiz-history');
     } catch (err) {
         console.error('Error loading home data:', err);
@@ -117,7 +259,7 @@ function renderQuizHistory(quizzes, containerId) {
 // ===== CATEGORY SELECTS =====
 async function loadCategorySelects() {
     try {
-        const categories = await fetch(`${API}/categories`).then(r => r.json());
+        const categories = await apiFetch(`${API}/categories`).then(r => r.json());
         const options = categories.map(c => `<option value="${c.name}">${c.name} (${c.count})</option>`).join('');
         ['study-category', 'quiz-category', 'manage-category'].forEach(id => {
             const el = document.getElementById(id);
@@ -126,11 +268,8 @@ async function loadCategorySelects() {
                 el.innerHTML = first.outerHTML + options;
             }
         });
-        // Datalist for add modal
         const datalist = document.getElementById('category-datalist');
-        if (datalist) {
-            datalist.innerHTML = categories.map(c => `<option value="${c.name}">`).join('');
-        }
+        if (datalist) datalist.innerHTML = categories.map(c => `<option value="${c.name}">`).join('');
     } catch (err) {
         console.error('Error loading categories:', err);
     }
@@ -141,20 +280,17 @@ async function loadStudyCards() {
     try {
         const cat = document.getElementById('study-category').value;
         const url = cat ? `${API}/vocabulary?category=${encodeURIComponent(cat)}` : `${API}/vocabulary`;
-        studyCards = await fetch(url).then(r => r.json());
+        studyCards = await apiFetch(url).then(r => r.json());
         currentCardIndex = 0;
         isFlipped = false;
         updateCardDisplay();
-    } catch (err) {
-        console.error('Error loading cards:', err);
-    }
+    } catch (err) { console.error('Error loading cards:', err); }
 }
 
 function updateCardDisplay() {
     const flashcard = document.getElementById('flashcard');
     flashcard.classList.remove('flipped');
     isFlipped = false;
-
     if (studyCards.length === 0) {
         document.getElementById('card-word').textContent = 'Không có từ nào';
         document.getElementById('card-phonetic').textContent = '';
@@ -165,7 +301,6 @@ function updateCardDisplay() {
         document.getElementById('card-total').textContent = '0';
         return;
     }
-
     const card = studyCards[currentCardIndex];
     document.getElementById('card-word').textContent = card.word;
     document.getElementById('card-phonetic').textContent = card.phonetic || '';
@@ -178,8 +313,7 @@ function updateCardDisplay() {
 
 function flipCard() {
     if (studyCards.length === 0) return;
-    const flashcard = document.getElementById('flashcard');
-    flashcard.classList.toggle('flipped');
+    document.getElementById('flashcard').classList.toggle('flipped');
     isFlipped = !isFlipped;
 }
 
@@ -209,29 +343,25 @@ async function markWord(correct) {
     if (studyCards.length === 0) return;
     const card = studyCards[currentCardIndex];
     try {
-        await fetch(`${API}/progress/${card._id}`, {
+        await apiFetch(`${API}/progress/${card._id}`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: authHeaders(),
             body: JSON.stringify({ correct })
         });
         showToast(correct ? '✅ Đã đánh dấu thuộc!' : '❌ Sẽ ôn lại từ này', correct ? 'success' : 'info');
         nextCard();
-    } catch (err) {
-        showToast('Lỗi lưu tiến độ', 'error');
-    }
+    } catch (err) { showToast('Lỗi lưu tiến độ', 'error'); }
 }
 
 // ===== PRONUNCIATION =====
 function speakWord() {
     if (studyCards.length === 0) return;
-    const word = studyCards[currentCardIndex].word;
-    speak(word);
+    speak(studyCards[currentCardIndex].word);
 }
 
 function speakQuizWord() {
     if (quizQuestions.length === 0) return;
-    const word = quizQuestions[quizCurrentIndex].word;
-    speak(word);
+    speak(quizQuestions[quizCurrentIndex].word);
 }
 
 function speak(text) {
@@ -248,29 +378,16 @@ async function startQuiz() {
     const cat = document.getElementById('quiz-category').value;
     const count = document.getElementById('quiz-count').value;
     const url = `${API}/quiz?count=${count}${cat ? '&category=' + encodeURIComponent(cat) : ''}`;
-
     try {
-        quizQuestions = await fetch(url).then(r => r.json());
-        if (quizQuestions.length === 0) {
-            showToast('Không có đủ từ vựng để kiểm tra', 'error');
-            return;
-        }
-
-        // Fetch all words for generating options
-        allWords = await fetch(`${API}/vocabulary`).then(r => r.json());
-
-        quizCurrentIndex = 0;
-        quizScore = 0;
-        quizAnswers = [];
-
+        quizQuestions = await apiFetch(url).then(r => r.json());
+        if (quizQuestions.length === 0) { showToast('Không có đủ từ vựng', 'error'); return; }
+        allWords = await apiFetch(`${API}/vocabulary`).then(r => r.json());
+        quizCurrentIndex = 0; quizScore = 0; quizAnswers = [];
         document.getElementById('quiz-setup').classList.add('hidden');
         document.getElementById('quiz-result').classList.add('hidden');
         document.getElementById('quiz-area').classList.remove('hidden');
-
         showQuizQuestion();
-    } catch (err) {
-        showToast('Lỗi tạo bài kiểm tra', 'error');
-    }
+    } catch (err) { showToast('Lỗi tạo bài kiểm tra', 'error'); }
 }
 
 function showQuizQuestion() {
@@ -279,67 +396,40 @@ function showQuizQuestion() {
     document.getElementById('quiz-phonetic').textContent = q.phonetic || '';
     document.getElementById('quiz-counter').textContent = `${quizCurrentIndex + 1}/${quizQuestions.length}`;
     document.getElementById('quiz-progress-fill').style.width = `${((quizCurrentIndex) / quizQuestions.length) * 100}%`;
-
-    // Generate 4 options
     const correctAnswer = q.meaning;
-    const wrongOptions = allWords
-        .filter(w => w._id !== q._id)
-        .sort(() => Math.random() - 0.5)
-        .slice(0, 3)
-        .map(w => w.meaning);
-
+    const wrongOptions = allWords.filter(w => w._id !== q._id).sort(() => Math.random() - 0.5).slice(0, 3).map(w => w.meaning);
     const options = [correctAnswer, ...wrongOptions].sort(() => Math.random() - 0.5);
-
-    const optionsEl = document.getElementById('quiz-options');
-    optionsEl.innerHTML = options.map(opt => `
+    document.getElementById('quiz-options').innerHTML = options.map(opt => `
     <button class="quiz-option" onclick="answerQuiz(this, '${opt.replace(/'/g, "\\'")}', '${correctAnswer.replace(/'/g, "\\'")}')">${opt}</button>
   `).join('');
 }
 
 function answerQuiz(el, selected, correct) {
-    const options = document.querySelectorAll('.quiz-option');
-    options.forEach(opt => {
+    document.querySelectorAll('.quiz-option').forEach(opt => {
         opt.classList.add('disabled');
         if (opt.textContent === correct) opt.classList.add('correct');
     });
-
     const isCorrect = selected === correct;
     if (!isCorrect) el.classList.add('wrong');
     if (isCorrect) quizScore++;
-
-    quizAnswers.push({
-        word: quizQuestions[quizCurrentIndex].word,
-        correct: correct,
-        selected: selected,
-        isCorrect
-    });
-
-    // Update progress in DB
-    fetch(`${API}/progress/${quizQuestions[quizCurrentIndex]._id}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ correct: isCorrect })
+    quizAnswers.push({ word: quizQuestions[quizCurrentIndex].word, correct, selected, isCorrect });
+    apiFetch(`${API}/progress/${quizQuestions[quizCurrentIndex]._id}`, {
+        method: 'POST', headers: authHeaders(), body: JSON.stringify({ correct: isCorrect })
     }).catch(() => { });
-
     setTimeout(() => {
         quizCurrentIndex++;
-        if (quizCurrentIndex < quizQuestions.length) {
-            showQuizQuestion();
-        } else {
-            showQuizResult();
-        }
+        if (quizCurrentIndex < quizQuestions.length) showQuizQuestion();
+        else showQuizResult();
     }, 1200);
 }
 
 async function showQuizResult() {
     document.getElementById('quiz-area').classList.add('hidden');
     document.getElementById('quiz-result').classList.remove('hidden');
-
     const pct = Math.round((quizScore / quizQuestions.length) * 100);
     document.getElementById('result-score').textContent = quizScore;
     document.getElementById('result-total').textContent = quizQuestions.length;
     document.getElementById('result-percentage').textContent = `${pct}%`;
-
     if (pct >= 80) {
         document.getElementById('result-emoji').textContent = '🎉';
         document.getElementById('result-title').textContent = 'Tuyệt vời!';
@@ -353,28 +443,19 @@ async function showQuizResult() {
         document.getElementById('result-title').textContent = 'Cần ôn thêm!';
         document.getElementById('result-percentage').style.color = 'var(--danger)';
     }
-
-    // Details
-    const details = document.getElementById('result-details');
-    details.innerHTML = quizAnswers.map(a => `
+    document.getElementById('result-details').innerHTML = quizAnswers.map(a => `
     <div class="result-detail-item">
       <span>${a.isCorrect ? '✅' : '❌'} ${a.word}</span>
       <span>${a.correct}</span>
     </div>
   `).join('');
-
-    // Save to history
     const cat = document.getElementById('quiz-category').value || 'Tất cả';
     try {
-        await fetch(`${API}/quiz/history`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+        await apiFetch(`${API}/quiz/history`, {
+            method: 'POST', headers: authHeaders(),
             body: JSON.stringify({ score: quizScore, total: quizQuestions.length, percentage: pct, category: cat })
         });
-    } catch (err) {
-        console.error('Error saving quiz history', err);
-    }
-
+    } catch (err) { console.error('Error saving quiz history', err); }
     document.getElementById('quiz-progress-fill').style.width = '100%';
 }
 
@@ -389,18 +470,14 @@ async function loadManageWords() {
     try {
         const cat = document.getElementById('manage-category').value;
         const url = cat ? `${API}/vocabulary?category=${encodeURIComponent(cat)}` : `${API}/vocabulary`;
-        manageWords = await fetch(url).then(r => r.json());
+        manageWords = await apiFetch(url).then(r => r.json());
         renderManageWords(manageWords);
-    } catch (err) {
-        showToast('Lỗi tải từ vựng', 'error');
-    }
+    } catch (err) { showToast('Lỗi tải từ vựng', 'error'); }
 }
 
 function filterManageWords() {
     const search = document.getElementById('manage-search').value.toLowerCase();
-    const filtered = manageWords.filter(w =>
-        w.word.toLowerCase().includes(search) || w.meaning.toLowerCase().includes(search)
-    );
+    const filtered = manageWords.filter(w => w.word.toLowerCase().includes(search) || w.meaning.toLowerCase().includes(search));
     renderManageWords(filtered);
 }
 
@@ -410,6 +487,7 @@ function renderManageWords(words) {
         list.innerHTML = '<div class="empty-state"><div class="empty-icon">📚</div><p>Chưa có từ vựng nào</p></div>';
         return;
     }
+    const admin = isAdmin();
     list.innerHTML = words.map(w => `
     <div class="word-card">
       <div class="word-info">
@@ -422,8 +500,8 @@ function renderManageWords(words) {
       </div>
       <div class="word-actions">
         <button class="btn-icon" onclick="speak('${w.word.replace(/'/g, "\\'")}')" title="Phát âm">🔊</button>
-        <button class="btn-icon" onclick="editWord('${w._id}')" title="Sửa">✏️</button>
-        <button class="btn-icon danger" onclick="deleteWord('${w._id}')" title="Xóa">🗑️</button>
+        ${admin ? `<button class="btn-icon" onclick="editWord('${w._id}')" title="Sửa">✏️</button>` : ''}
+        ${admin ? `<button class="btn-icon danger" onclick="deleteWord('${w._id}')" title="Xóa">🗑️</button>` : ''}
       </div>
     </div>
   `).join('');
@@ -442,22 +520,18 @@ function closeModal() {
 }
 
 async function editWord(id) {
-    try {
-        const words = manageWords.length > 0 ? manageWords : await fetch(`${API}/vocabulary`).then(r => r.json());
-        const word = words.find(w => w._id === id);
-        if (!word) return;
-
-        document.getElementById('modal-title').textContent = 'Sửa từ vựng';
-        document.getElementById('word-id').value = word._id;
-        document.getElementById('input-word').value = word.word;
-        document.getElementById('input-meaning').value = word.meaning;
-        document.getElementById('input-phonetic').value = word.phonetic || '';
-        document.getElementById('input-example').value = word.example || '';
-        document.getElementById('input-category').value = word.category;
-        document.getElementById('modal-overlay').classList.remove('hidden');
-    } catch (err) {
-        showToast('Lỗi tải từ', 'error');
-    }
+    if (!isAdmin()) { showToast('Chỉ admin mới được sửa', 'error'); return; }
+    const words = manageWords.length > 0 ? manageWords : await apiFetch(`${API}/vocabulary`).then(r => r.json());
+    const word = words.find(w => w._id === id);
+    if (!word) return;
+    document.getElementById('modal-title').textContent = 'Sửa từ vựng';
+    document.getElementById('word-id').value = word._id;
+    document.getElementById('input-word').value = word.word;
+    document.getElementById('input-meaning').value = word.meaning;
+    document.getElementById('input-phonetic').value = word.phonetic || '';
+    document.getElementById('input-example').value = word.example || '';
+    document.getElementById('input-category').value = word.category;
+    document.getElementById('modal-overlay').classList.remove('hidden');
 }
 
 async function saveWord(e) {
@@ -470,79 +544,60 @@ async function saveWord(e) {
         example: document.getElementById('input-example').value.trim(),
         category: document.getElementById('input-category').value.trim()
     };
-
     try {
         if (id) {
-            await fetch(`${API}/vocabulary/${id}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data)
+            const res = await apiFetch(`${API}/vocabulary/${id}`, {
+                method: 'PUT', headers: authHeaders(), body: JSON.stringify(data)
             });
-            showToast('Đã cập nhật từ!', 'success');
+            if (res.ok) showToast('Đã cập nhật từ!', 'success');
         } else {
-            await fetch(`${API}/vocabulary`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data)
+            const res = await apiFetch(`${API}/vocabulary`, {
+                method: 'POST', headers: authHeaders(), body: JSON.stringify(data)
             });
-            showToast('Đã thêm từ mới!', 'success');
+            if (res.ok) showToast('Đã thêm từ mới!', 'success');
         }
         closeModal();
         loadManageWords();
         loadCategorySelects();
-    } catch (err) {
-        showToast('Lỗi lưu từ', 'error');
-    }
+    } catch (err) { /* handled by apiFetch */ }
 }
 
 async function deleteWord(id) {
+    if (!isAdmin()) { showToast('Chỉ admin mới được xóa', 'error'); return; }
     if (!confirm('Bạn có chắc muốn xóa từ này?')) return;
     try {
-        await fetch(`${API}/vocabulary/${id}`, { method: 'DELETE' });
+        await apiFetch(`${API}/vocabulary/${id}`, { method: 'DELETE', headers: authHeaders() });
         showToast('Đã xóa!', 'success');
         loadManageWords();
         loadCategorySelects();
-    } catch (err) {
-        showToast('Lỗi xóa từ', 'error');
-    }
+    } catch (err) { /* handled by apiFetch */ }
 }
 
 // ===== SENTENCE STRUCTURES =====
 async function loadSentenceCategorySelects() {
     try {
-        const categories = await fetch(`${API}/sentences/categories`).then(r => r.json());
+        const categories = await apiFetch(`${API}/sentences/categories`).then(r => r.json());
         const options = categories.map(c => `<option value="${c.name}">${c.name} (${c.count})</option>`).join('');
         const el = document.getElementById('sentence-category-filter');
-        if (el) {
-            const first = el.querySelector('option');
-            el.innerHTML = first.outerHTML + options;
-        }
+        if (el) { const first = el.querySelector('option'); el.innerHTML = first.outerHTML + options; }
         const datalist = document.getElementById('sent-category-datalist');
-        if (datalist) {
-            datalist.innerHTML = categories.map(c => `<option value="${c.name}">`).join('');
-        }
-    } catch (err) {
-        console.error('Error loading sentence categories:', err);
-    }
+        if (datalist) datalist.innerHTML = categories.map(c => `<option value="${c.name}">`).join('');
+    } catch (err) { console.error('Error loading sentence categories:', err); }
 }
 
 async function loadSentences() {
     try {
         const cat = document.getElementById('sentence-category-filter').value;
         const url = cat ? `${API}/sentences?category=${encodeURIComponent(cat)}` : `${API}/sentences`;
-        allSentences = await fetch(url).then(r => r.json());
+        allSentences = await apiFetch(url).then(r => r.json());
         renderSentences(allSentences);
-    } catch (err) {
-        showToast('Lỗi tải cấu trúc câu', 'error');
-    }
+    } catch (err) { showToast('Lỗi tải cấu trúc câu', 'error'); }
 }
 
 function filterSentences() {
     const search = document.getElementById('sentence-search').value.toLowerCase();
     const filtered = allSentences.filter(s =>
-        s.structure.toLowerCase().includes(search) ||
-        s.meaning.toLowerCase().includes(search) ||
-        (s.formula && s.formula.toLowerCase().includes(search))
+        s.structure.toLowerCase().includes(search) || s.meaning.toLowerCase().includes(search) || (s.formula && s.formula.toLowerCase().includes(search))
     );
     renderSentences(filtered);
 }
@@ -553,11 +608,12 @@ function renderSentences(sentences) {
         list.innerHTML = '<div class="empty-state"><div class="empty-icon">📐</div><p>Chưa có cấu trúc câu nào. Hãy thêm mới!</p></div>';
         return;
     }
+    const admin = isAdmin();
     list.innerHTML = sentences.map(s => {
         const examplesHtml = s.examples && s.examples.length > 0
             ? `<div class="sentence-examples">${s.examples.map(ex => `
-            <div class="ex-item"><span class="ex-en">🔹 ${ex.english}</span> → ${ex.vietnamese}</div>
-          `).join('')}</div>`
+          <div class="ex-item"><span class="ex-en">🔹 ${ex.english}</span> → ${ex.vietnamese}</div>
+        `).join('')}</div>`
             : '';
         return `
       <div class="sentence-card">
@@ -566,14 +622,12 @@ function renderSentences(sentences) {
           <div class="sentence-meaning">${s.meaning}</div>
           ${s.formula ? `<div class="sentence-formula">${s.formula}</div>` : ''}
           ${examplesHtml}
-          <div class="word-meta" style="margin-top:8px">
-            <span class="word-tag">${s.category}</span>
-          </div>
+          <div class="word-meta" style="margin-top:8px"><span class="word-tag">${s.category}</span></div>
           ${s.note ? `<div style="font-size:12px;color:var(--text-muted);margin-top:4px">📝 ${s.note}</div>` : ''}
         </div>
         <div class="sentence-actions">
-          <button class="btn-icon" onclick="editSentence('${s._id}')" title="Sửa">✏️</button>
-          <button class="btn-icon danger" onclick="deleteSentence('${s._id}')" title="Xóa">🗑️</button>
+          ${admin ? `<button class="btn-icon" onclick="editSentence('${s._id}')" title="Sửa">✏️</button>` : ''}
+          ${admin ? `<button class="btn-icon danger" onclick="deleteSentence('${s._id}')" title="Xóa">🗑️</button>` : ''}
         </div>
       </div>
     `;
@@ -594,9 +648,7 @@ function showAddSentenceModal() {
     document.getElementById('sentence-modal-overlay').classList.remove('hidden');
 }
 
-function closeSentenceModal() {
-    document.getElementById('sentence-modal-overlay').classList.add('hidden');
-}
+function closeSentenceModal() { document.getElementById('sentence-modal-overlay').classList.add('hidden'); }
 
 function addExampleRow() {
     const container = document.getElementById('examples-container');
@@ -610,9 +662,9 @@ function addExampleRow() {
 }
 
 async function editSentence(id) {
+    if (!isAdmin()) { showToast('Chỉ admin mới được sửa', 'error'); return; }
     const sent = allSentences.find(s => s._id === id);
     if (!sent) return;
-
     document.getElementById('sentence-modal-title').textContent = 'Sửa cấu trúc câu';
     document.getElementById('sentence-id').value = sent._id;
     document.getElementById('input-structure').value = sent.structure;
@@ -620,7 +672,6 @@ async function editSentence(id) {
     document.getElementById('input-formula').value = sent.formula || '';
     document.getElementById('input-sent-category').value = sent.category;
     document.getElementById('input-note').value = sent.note || '';
-
     const container = document.getElementById('examples-container');
     if (sent.examples && sent.examples.length > 0) {
         container.innerHTML = sent.examples.map(ex => `
@@ -630,22 +681,14 @@ async function editSentence(id) {
       </div>
     `).join('');
     } else {
-        container.innerHTML = `
-      <div class="example-row">
-        <input type="text" class="text-input example-en" placeholder="English">
-        <input type="text" class="text-input example-vi" placeholder="Vietnamese">
-      </div>
-    `;
+        container.innerHTML = `<div class="example-row"><input type="text" class="text-input example-en" placeholder="English"><input type="text" class="text-input example-vi" placeholder="Vietnamese"></div>`;
     }
-
     document.getElementById('sentence-modal-overlay').classList.remove('hidden');
 }
 
 async function saveSentence(e) {
     e.preventDefault();
     const id = document.getElementById('sentence-id').value;
-
-    // Collect examples
     const rows = document.querySelectorAll('#examples-container .example-row');
     const examples = [];
     rows.forEach(row => {
@@ -653,7 +696,6 @@ async function saveSentence(e) {
         const vi = row.querySelector('.example-vi').value.trim();
         if (en || vi) examples.push({ english: en, vietnamese: vi });
     });
-
     const data = {
         structure: document.getElementById('input-structure').value.trim(),
         meaning: document.getElementById('input-sent-meaning').value.trim(),
@@ -662,85 +704,63 @@ async function saveSentence(e) {
         note: document.getElementById('input-note').value.trim(),
         examples
     };
-
     try {
         if (id) {
-            await fetch(`${API}/sentences/${id}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data)
+            const res = await apiFetch(`${API}/sentences/${id}`, {
+                method: 'PUT', headers: authHeaders(), body: JSON.stringify(data)
             });
-            showToast('Đã cập nhật cấu trúc!', 'success');
+            if (res.ok) showToast('Đã cập nhật cấu trúc!', 'success');
         } else {
-            await fetch(`${API}/sentences`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data)
+            const res = await apiFetch(`${API}/sentences`, {
+                method: 'POST', headers: authHeaders(), body: JSON.stringify(data)
             });
-            showToast('Đã thêm cấu trúc mới!', 'success');
+            if (res.ok) showToast('Đã thêm cấu trúc mới!', 'success');
         }
         closeSentenceModal();
         loadSentences();
         loadSentenceCategorySelects();
-    } catch (err) {
-        showToast('Lỗi lưu cấu trúc', 'error');
-    }
+    } catch (err) { /* handled by apiFetch */ }
 }
 
 async function deleteSentence(id) {
+    if (!isAdmin()) { showToast('Chỉ admin mới được xóa', 'error'); return; }
     if (!confirm('Bạn có chắc muốn xóa cấu trúc này?')) return;
     try {
-        await fetch(`${API}/sentences/${id}`, { method: 'DELETE' });
+        await apiFetch(`${API}/sentences/${id}`, { method: 'DELETE', headers: authHeaders() });
         showToast('Đã xóa!', 'success');
         loadSentences();
         loadSentenceCategorySelects();
-    } catch (err) {
-        showToast('Lỗi xóa', 'error');
-    }
+    } catch (err) { /* handled by apiFetch */ }
 }
 
 // ===== PROGRESS =====
 async function loadProgress() {
     try {
-        const stats = await fetch(`${API}/progress/stats`).then(r => r.json());
-
-        // Ring
+        const stats = await apiFetch(`${API}/progress/stats`).then(r => r.json());
         const pct = stats.total > 0 ? Math.round((stats.known / stats.total) * 100) : 0;
         document.getElementById('ring-percent').textContent = `${pct}%`;
-        const circumference = 2 * Math.PI * 50; // r=50
+        const circumference = 2 * Math.PI * 50;
         const offset = circumference - (pct / 100) * circumference;
         const ringFill = document.getElementById('ring-fill');
         ringFill.style.stroke = 'var(--accent-primary)';
         ringFill.style.strokeDasharray = circumference;
         setTimeout(() => { ringFill.style.strokeDashoffset = offset; }, 100);
 
-        // Category progress
-        const categories = await fetch(`${API}/categories`).then(r => r.json());
-        const progress = await fetch(`${API}/progress`).then(r => r.json());
-
-        const catProgress = document.getElementById('category-progress');
-        catProgress.innerHTML = categories.map(cat => {
+        const categories = await apiFetch(`${API}/categories`).then(r => r.json());
+        const progress = await apiFetch(`${API}/progress`).then(r => r.json());
+        document.getElementById('category-progress').innerHTML = categories.map(cat => {
             const catWords = progress.filter(p => p.wordId && p.wordId.category === cat.name);
             const known = catWords.filter(p => p.status === 'known').length;
             const catPct = cat.count > 0 ? Math.round((known / cat.count) * 100) : 0;
             return `
         <div class="progress-bar-item">
-          <div class="progress-bar-header">
-            <span>${cat.name}</span>
-            <span>${known}/${cat.count} (${catPct}%)</span>
-          </div>
-          <div class="progress-bar-track">
-            <div class="progress-bar-fill" style="width:${catPct}%"></div>
-          </div>
+          <div class="progress-bar-header"><span>${cat.name}</span><span>${known}/${cat.count} (${catPct}%)</span></div>
+          <div class="progress-bar-track"><div class="progress-bar-fill" style="width:${catPct}%"></div></div>
         </div>
       `;
         }).join('');
-
-        // Quiz history
         renderQuizHistory(stats.recentQuizzes, 'progress-quiz-history');
-    } catch (err) {
-        console.error('Error loading progress:', err);
-    }
+    } catch (err) { console.error('Error loading progress:', err); }
 }
 
 // ===== TOAST =====
