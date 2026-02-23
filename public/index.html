@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="English Flashcard - Ứng dụng học tiếng Anh bằng thẻ ghi nhớ">
+    <title>English Flashcard | Học Tiếng Anh</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <!-- SIDEBAR -->
+    <nav class="sidebar" id="sidebar">
+        <div class="sidebar-logo">
+            <span class="logo-icon">🎴</span>
+            <span class="logo-text">FlashCard</span>
+        </div>
+        <ul class="sidebar-menu">
+            <li class="menu-item active" data-page="home" onclick="navigateTo('home')">
+                <span class="menu-icon">🏠</span><span class="menu-label">Trang chủ</span>
+            </li>
+            <li class="menu-item" data-page="study" onclick="navigateTo('study')">
+                <span class="menu-icon">🃏</span><span class="menu-label">Học Flashcard</span>
+            </li>
+            <li class="menu-item" data-page="quiz" onclick="navigateTo('quiz')">
+                <span class="menu-icon">📝</span><span class="menu-label">Kiểm tra</span>
+            </li>
+            <li class="menu-item" data-page="manage" onclick="navigateTo('manage')">
+                <span class="menu-icon">📚</span><span class="menu-label">Quản lý từ</span>
+            </li>
+            <li class="menu-item" data-page="sentences" onclick="navigateTo('sentences')">
+                <span class="menu-icon">📐</span><span class="menu-label">Cấu trúc câu</span>
+            </li>
+            <li class="menu-item" data-page="progress" onclick="navigateTo('progress')">
+                <span class="menu-icon">📊</span><span class="menu-label">Tiến độ</span>
+            </li>
+        </ul>
+        <div class="sidebar-footer">
+            <div class="theme-toggle" onclick="toggleTheme()">
+                <span id="theme-icon">🌙</span>
+            </div>
+        </div>
+    </nav>
+
+    <!-- MAIN CONTENT -->
+    <main class="main-content">
+        <!-- HOME PAGE -->
+        <section class="page active" id="page-home">
+            <div class="page-header">
+                <h1>Chào mừng bạn! 👋</h1>
+                <p class="subtitle">Học tiếng Anh mỗi ngày với Flashcard</p>
+            </div>
+            <div class="stats-grid" id="home-stats">
+                <div class="stat-card glass">
+                    <div class="stat-icon">📖</div>
+                    <div class="stat-info">
+                        <span class="stat-number" id="stat-total">0</span>
+                        <span class="stat-label">Tổng từ vựng</span>
+                    </div>
+                </div>
+                <div class="stat-card glass">
+                    <div class="stat-icon">✅</div>
+                    <div class="stat-info">
+                        <span class="stat-number" id="stat-known">0</span>
+                        <span class="stat-label">Đã thuộc</span>
+                    </div>
+                </div>
+                <div class="stat-card glass">
+                    <div class="stat-icon">📖</div>
+                    <div class="stat-info">
+                        <span class="stat-number" id="stat-learning">0</span>
+                        <span class="stat-label">Đang học</span>
+                    </div>
+                </div>
+                <div class="stat-card glass">
+                    <div class="stat-icon">🆕</div>
+                    <div class="stat-info">
+                        <span class="stat-number" id="stat-new">0</span>
+                        <span class="stat-label">Chưa học</span>
+                    </div>
+                </div>
+            </div>
+            <div class="categories-section">
+                <h2>📂 Chọn chủ đề để bắt đầu</h2>
+                <div class="categories-grid" id="categories-grid"></div>
+            </div>
+            <div class="recent-quiz-section">
+                <h2>📝 Lịch sử kiểm tra gần đây</h2>
+                <div class="quiz-history-list" id="home-quiz-history"></div>
+            </div>
+        </section>
+
+        <!-- STUDY PAGE -->
+        <section class="page" id="page-study">
+            <div class="page-header">
+                <h1>🃏 Học Flashcard</h1>
+                <div class="study-controls">
+                    <select id="study-category" class="select-input" onchange="loadStudyCards()">
+                        <option value="">Tất cả chủ đề</option>
+                    </select>
+                    <button class="btn btn-secondary" onclick="shuffleCards()">🔀 Xáo trộn</button>
+                </div>
+            </div>
+            <div class="flashcard-area">
+                <div class="card-counter">
+                    <span id="card-current">0</span> / <span id="card-total">0</span>
+                </div>
+                <div class="flashcard-container" id="flashcard-container">
+                    <div class="flashcard" id="flashcard" onclick="flipCard()">
+                        <div class="flashcard-front">
+                            <div class="card-category" id="card-category"></div>
+                            <div class="card-word" id="card-word">Select a category</div>
+                            <div class="card-phonetic" id="card-phonetic"></div>
+                            <button class="btn-speak" onclick="event.stopPropagation(); speakWord()"
+                                title="Phát âm">🔊</button>
+                            <div class="card-hint">Nhấn để lật thẻ</div>
+                        </div>
+                        <div class="flashcard-back">
+                            <div class="card-meaning" id="card-meaning"></div>
+                            <div class="card-example" id="card-example"></div>
+                            <div class="card-hint">Nhấn để xem từ</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-actions">
+                    <button class="btn btn-danger" onclick="markWord(false)" id="btn-unknown">❌ Chưa biết</button>
+                    <button class="btn btn-outline" onclick="prevCard()">◀ Trước</button>
+                    <button class="btn btn-outline" onclick="nextCard()">Sau ▶</button>
+                    <button class="btn btn-success" onclick="markWord(true)" id="btn-known">✅ Đã biết</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- QUIZ PAGE -->
+        <section class="page" id="page-quiz">
+            <div class="page-header">
+                <h1>📝 Kiểm tra từ vựng</h1>
+            </div>
+            <div class="quiz-setup" id="quiz-setup">
+                <div class="quiz-setup-card glass">
+                    <h2>Cài đặt bài kiểm tra</h2>
+                    <div class="form-group">
+                        <label>Chủ đề</label>
+                        <select id="quiz-category" class="select-input">
+                            <option value="">Tất cả</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Số câu hỏi</label>
+                        <select id="quiz-count" class="select-input">
+                            <option value="5">5 câu</option>
+                            <option value="10" selected>10 câu</option>
+                            <option value="15">15 câu</option>
+                            <option value="20">20 câu</option>
+                        </select>
+                    </div>
+                    <button class="btn btn-primary btn-lg" onclick="startQuiz()">🚀 Bắt đầu</button>
+                </div>
+            </div>
+            <div class="quiz-area hidden" id="quiz-area">
+                <div class="quiz-progress">
+                    <div class="quiz-progress-bar">
+                        <div class="quiz-progress-fill" id="quiz-progress-fill"></div>
+                    </div>
+                    <span id="quiz-counter">1/10</span>
+                </div>
+                <div class="quiz-question glass" id="quiz-question">
+                    <h2 class="quiz-word" id="quiz-word"></h2>
+                    <p class="quiz-phonetic" id="quiz-phonetic"></p>
+                    <button class="btn-speak" onclick="speakQuizWord()" title="Phát âm">🔊</button>
+                </div>
+                <div class="quiz-options" id="quiz-options"></div>
+            </div>
+            <div class="quiz-result hidden" id="quiz-result">
+                <div class="result-card glass">
+                    <div class="result-emoji" id="result-emoji">🎉</div>
+                    <h2 id="result-title">Tuyệt vời!</h2>
+                    <div class="result-score">
+                        <span class="score-number" id="result-score">0</span>
+                        <span class="score-total">/ <span id="result-total">0</span></span>
+                    </div>
+                    <div class="result-percentage" id="result-percentage">0%</div>
+                    <div class="result-details" id="result-details"></div>
+                    <div class="result-actions">
+                        <button class="btn btn-primary" onclick="startQuiz()">🔄 Làm lại</button>
+                        <button class="btn btn-outline" onclick="showQuizSetup()">⚙️ Cài đặt</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- MANAGE VOCABULARY PAGE -->
+        <section class="page" id="page-manage">
+            <div class="page-header">
+                <h2>📚 Quản lý từ vựng</h2>
+                <button class="btn btn-primary" onclick="showAddModal()">➕ Thêm từ mới</button>
+            </div>
+            <div class="manage-filters">
+                <select id="manage-category" class="select-input" onchange="loadManageWords()">
+                    <option value="">Tất cả chủ đề</option>
+                </select>
+                <input type="text" id="manage-search" class="text-input" placeholder="🔍 Tìm từ..."
+                    oninput="filterManageWords()">
+            </div>
+            <div class="word-list" id="word-list"></div>
+        </section>
+
+        <!-- SENTENCE STRUCTURES PAGE -->
+        <section class="page" id="page-sentences">
+            <div class="page-header">
+                <h2>📐 Cấu trúc câu</h2>
+                <button class="btn btn-primary" onclick="showAddSentenceModal()">➕ Thêm cấu trúc</button>
+            </div>
+            <div class="manage-filters">
+                <select id="sentence-category-filter" class="select-input" onchange="loadSentences()">
+                    <option value="">Tất cả chủ đề</option>
+                </select>
+                <input type="text" id="sentence-search" class="text-input" placeholder="🔍 Tìm cấu trúc..."
+                    oninput="filterSentences()">
+            </div>
+            <div class="sentence-list" id="sentence-list"></div>
+        </section>
+
+        <!-- PROGRESS PAGE -->
+        <section class="page" id="page-progress">
+            <div class="page-header">
+                <h1>📊 Tiến độ học tập</h1>
+            </div>
+            <div class="progress-overview" id="progress-overview">
+                <div class="progress-ring-card glass">
+                    <div class="progress-ring" id="progress-ring">
+                        <svg viewBox="0 0 120 120">
+                            <circle class="ring-bg" cx="60" cy="60" r="50" />
+                            <circle class="ring-fill" id="ring-fill" cx="60" cy="60" r="50" stroke-dasharray="314"
+                                stroke-dashoffset="314" />
+                        </svg>
+                        <div class="ring-text">
+                            <span class="ring-percent" id="ring-percent">0%</span>
+                            <span class="ring-label">hoàn thành</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="progress-bars-card glass">
+                    <h3>Chi tiết theo chủ đề</h3>
+                    <div id="category-progress"></div>
+                </div>
+            </div>
+            <div class="quiz-history-section glass">
+                <h3>📝 Lịch sử kiểm tra</h3>
+                <div id="progress-quiz-history"></div>
+            </div>
+        </section>
+    </main>
+
+    <!-- VOCABULARY MODAL -->
+    <div class="modal-overlay hidden" id="modal-overlay" onclick="closeModal()">
+        <div class="modal glass" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <h2 id="modal-title">Thêm từ mới</h2>
+                <button class="btn-close" onclick="closeModal()">✕</button>
+            </div>
+            <form id="word-form" onsubmit="saveWord(event)">
+                <input type="hidden" id="word-id">
+                <div class="form-group">
+                    <label>Từ tiếng Anh *</label>
+                    <input type="text" id="input-word" class="text-input" required placeholder="e.g. Elephant">
+                </div>
+                <div class="form-group">
+                    <label>Nghĩa tiếng Việt *</label>
+                    <input type="text" id="input-meaning" class="text-input" required placeholder="e.g. Con voi">
+                </div>
+                <div class="form-group">
+                    <label>Phiên âm</label>
+                    <input type="text" id="input-phonetic" class="text-input" placeholder="e.g. /ˈelɪfənt/">
+                </div>
+                <div class="form-group">
+                    <label>Ví dụ</label>
+                    <input type="text" id="input-example" class="text-input"
+                        placeholder="e.g. The elephant is very big.">
+                </div>
+                <div class="form-group">
+                    <label>Chủ đề *</label>
+                    <input type="text" id="input-category" class="text-input" required placeholder="e.g. Animals"
+                        list="category-datalist">
+                    <datalist id="category-datalist"></datalist>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-outline" onclick="closeModal()">Hủy</button>
+                    <button type="submit" class="btn btn-primary">💾 Lưu</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- SENTENCE STRUCTURE MODAL -->
+    <div class="modal-overlay hidden" id="sentence-modal-overlay" onclick="closeSentenceModal()">
+        <div class="modal glass modal-lg" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <h2 id="sentence-modal-title">Thêm cấu trúc câu</h2>
+                <button class="btn-close" onclick="closeSentenceModal()">✕</button>
+            </div>
+            <form id="sentence-form" onsubmit="saveSentence(event)">
+                <input type="hidden" id="sentence-id">
+                <div class="form-group">
+                    <label>Cấu trúc *</label>
+                    <input type="text" id="input-structure" class="text-input" required placeholder="e.g. S + V + O">
+                </div>
+                <div class="form-group">
+                    <label>Nghĩa / Giải thích *</label>
+                    <input type="text" id="input-sent-meaning" class="text-input" required
+                        placeholder="e.g. Chủ ngữ + Động từ + Tân ngữ">
+                </div>
+                <div class="form-group">
+                    <label>Công thức</label>
+                    <input type="text" id="input-formula" class="text-input"
+                        placeholder="e.g. Subject + Verb(s/es) + Object">
+                </div>
+                <div class="form-group">
+                    <label>Chủ đề *</label>
+                    <input type="text" id="input-sent-category" class="text-input" required placeholder="e.g. Tenses"
+                        list="sent-category-datalist">
+                    <datalist id="sent-category-datalist"></datalist>
+                </div>
+                <div class="form-group">
+                    <label>Ghi chú</label>
+                    <textarea id="input-note" class="text-input textarea-input"
+                        placeholder="Ghi chú thêm..."></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Ví dụ</label>
+                    <div id="examples-container">
+                        <div class="example-row">
+                            <input type="text" class="text-input example-en" placeholder="English: I eat rice.">
+                            <input type="text" class="text-input example-vi" placeholder="Vietnamese: Tôi ăn cơm.">
+                        </div>
+                    </div>
+                    <button type="button" class="btn btn-sm btn-outline" onclick="addExampleRow()">+ Thêm ví dụ</button>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-outline" onclick="closeSentenceModal()">Hủy</button>
+                    <button type="submit" class="btn btn-primary">💾 Lưu</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- TOAST -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <script src="app.js"></script>
+</body>
+
+</html>

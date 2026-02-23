@@ -1,0 +1,1 @@
+mongodb+srv://macthanhhai2k_db_user:n4qaVqbZ0IR2xb23@haibu2000.qhe35xp.mongodb.net/?appName=Haibu2000
