@@ -1,7 +1,9 @@
+const dns = require('dns');
+dns.setServers(['8.8.8.8', '8.8.4.4']);
 const mongoose = require('mongoose');
 const Vocabulary = require('./models/Vocabulary');
 
-const MONGO_URI = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/flashcard_english';
+const MONGO_URI = process.env.MONGO_URI || 'mongodb+srv://macthanhhai2k_db_user:n4qaVqbZ0IR2xb23@haibu2000.qhe35xp.mongodb.net/flashcard_english?retryWrites=true&w=majority';
 
 const seedData = [
     // ===== ANIMALS =====
